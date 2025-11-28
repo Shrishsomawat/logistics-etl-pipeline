@@ -1,0 +1,63 @@
+version: '3'
+services:
+  # 1. The Metadata Database (Postgres) - Stores Airflow's state
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  # 2. Airflow Webserver - The UI you see in the browser
+  webserver:
+    image: apache/airflow:2.7.1
+    command: webserver
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data   <-- ADD THIS LINE
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+
+  # 3. Airflow Scheduler - The "Heart" that triggers jobs
+  scheduler:
+    image: apache/airflow:2.7.1
+    command: scheduler
+    env_file:
+      - .env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data   <-- ADD THIS LINE
+    depends_on:
+      - postgres
+
+  # 4. Airflow Init - Runs once to set up the database tables
+  airflow-init:
+    image: apache/airflow:2.7.1
+    command: version
+    environment:
+      - _AIRFLOW_DB_UPGRADE=true
+      - _AIRFLOW_WWW_USER_CREATE=true
+      - _AIRFLOW_WWW_USER_USERNAME=airflow
+      - _AIRFLOW_WWW_USER_PASSWORD=airflow
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+
+volumes:
+  postgres-db-volume:
