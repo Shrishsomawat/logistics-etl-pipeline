@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.providers.common.sql.operators.sql import SQLCheckOperator # <--- NEW IMPORT
 from datetime import datetime, timedelta
 from extract_logistics_data import save_data_to_file, load_data_to_postgres
 
@@ -13,17 +13,17 @@ default_args = {
 }
 
 with DAG(
-    'logistics_pipeline_v1',         
+    'logistics_dbt_pipeline',
     default_args=default_args,
-    description='Extract -> Load -> Quality Check',
-    schedule_interval='@daily',      
-    catchup=False,                   
-    tags=['logistics', 'etl'],
+    description='ELT: Extract -> Load -> dbt Transform',
+    schedule_interval='@daily',
+    catchup=False,
+    tags=['dbt', 'elt'],
 ) as dag:
 
     # 1. Create Table
-    create_table_task = PostgresOperator(
-        task_id='create_postgres_table',
+    create_table = PostgresOperator(
+        task_id='create_raw_table',
         postgres_conn_id='postgres_localhost',
         sql="""
             CREATE TABLE IF NOT EXISTS raw_shipments (
@@ -38,25 +38,41 @@ with DAG(
     )
 
     # 2. Extract
-    extract_task = PythonOperator(
-        task_id='extract_data_daily',
-        python_callable=save_data_to_file, 
+    extract = PythonOperator(
+        task_id='extract_data',
+        python_callable=save_data_to_file,
     )
 
     # 3. Load
-    load_task = PythonOperator(
-        task_id='load_data_to_db',
+    load = PythonOperator(
+        task_id='load_raw_data',
         python_callable=load_data_to_postgres,
     )
 
-    # 4. Quality Check (The "Gate")
-    # This SQL query must return TRUE for the task to pass.
-    # If it finds any row where weight_kg IS NULL, it returns FALSE (and fails).
-    data_quality_check = SQLCheckOperator(
-        task_id='check_for_null_weights',
-        conn_id='postgres_localhost',
-        sql="SELECT COUNT(*) = 0 FROM raw_shipments WHERE weight_kg IS NULL;"
+    # 4. dbt Run (TRANSFORM)
+    # FIX: Added --log-path and --target-path to write to /tmp (avoids permission errors)
+    dbt_run = BashOperator(
+        task_id='dbt_run',
+        bash_command=(
+            'cd /opt/airflow/dbt_project && '
+            '/home/airflow/.local/bin/dbt run '
+            '--profiles-dir . '
+            '--log-path /tmp '
+            '--target-path /tmp/target'
+        )
     )
 
-    # Define the flow
-    create_table_task >> extract_task >> load_task >> data_quality_check
+    # 5. dbt Test (QUALITY)
+    # FIX: Added --log-path and --target-path here too
+    dbt_test = BashOperator(
+        task_id='dbt_test',
+        bash_command=(
+            'cd /opt/airflow/dbt_project && '
+            '/home/airflow/.local/bin/dbt test '
+            '--profiles-dir . '
+            '--log-path /tmp '
+            '--target-path /tmp/target'
+        )
+    )
+
+    create_table >> extract >> load >> dbt_run >> dbt_test

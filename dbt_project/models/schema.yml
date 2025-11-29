@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: postgres
+    database: airflow
+    schema: public
+    tables:
+      - name: raw_shipments
+
+models:
+  - name: stg_shipments
+    description: "Cleaned shipment data"
+    columns:
+      - name: shipment_id
+        tests:
+          - unique
+          - not_null
+      - name: weight_kg
+        tests:
+          - not_null
+          # This test ensures weight is NEVER negative

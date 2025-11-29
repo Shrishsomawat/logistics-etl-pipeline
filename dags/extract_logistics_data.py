@@ -10,7 +10,6 @@ from sqlalchemy import create_engine
 # --- CONFIG ---
 WAREHOUSES = ['WH-NJ-01', 'WH-TX-02', 'WH-CA-03', 'WH-IL-04']
 STATUSES = ['SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'DELAYED', 'LOST']
-# This connection string matches what we set up in docker-compose
 DB_CONN = "postgresql+psycopg2://airflow:airflow@postgres:5432/airflow"
 
 def generate_shipment_data(num_records=50):
@@ -24,6 +23,7 @@ def generate_shipment_data(num_records=50):
             "status": random.choice(STATUSES),
             "timestamp": datetime.now().isoformat()
         }
+        # Generate some dirty data (NULL weights) for dbt to clean later
         if random.random() < 0.05: 
             record['weight_kg'] = None
         data.append(record)
@@ -39,14 +39,16 @@ def save_data_to_file(**kwargs):
     with open(filename, 'w') as f:
         json.dump(shipments, f)
     print(f"Saved to {filename}")
-    return output_dir  # Return this path so the next task knows where to look!
+    return output_dir
 
 def load_data_to_postgres(**kwargs):
     ti = kwargs['ti']
-    source_dir = ti.xcom_pull(task_ids='extract_data_daily')
+    
+    # FIX 1: Updated task_id to match the new DAG name
+    source_dir = ti.xcom_pull(task_ids='extract_data')
     
     if not source_dir:
-        raise ValueError("No directory found from previous task")
+        raise ValueError("No directory found from previous task. Check task_ids match!")
 
     files = glob.glob(f"{source_dir}/*.json")
     
@@ -58,15 +60,10 @@ def load_data_to_postgres(**kwargs):
             
     df = pd.DataFrame(all_data)
     
-    # --- NEW: TRANSFORMATION STEP ---
-    # Drop any row where weight_kg is missing
-    initial_count = len(df)
-    df = df.dropna(subset=['weight_kg'])
-    final_count = len(df)
-    print(f"Dropped {initial_count - final_count} rows with missing weights.")
-    # --------------------------------
+    # FIX 2: Removed df.dropna(). We now load dirty data (NULLs) 
+    # so dbt can clean it in the next step.
     
     engine = create_engine(DB_CONN)
     df.to_sql('raw_shipments', engine, if_exists='append', index=False)
     
-    print(f"Successfully loaded {len(df)} clean rows into 'raw_shipments' table.")
+    print(f"Successfully loaded {len(df)} raw rows into 'raw_shipments' table.")

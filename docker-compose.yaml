@@ -1,6 +1,6 @@
 version: '3'
 services:
-  # 1. The Metadata Database (Postgres) - Stores Airflow's state
+  # 1. The Metadata Database (Postgres)
   postgres:
     image: postgres:13
     environment:
@@ -10,9 +10,9 @@ services:
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
 
-  # 2. Airflow Webserver - The UI you see in the browser
+  # 2. Airflow Webserver
   webserver:
-    image: apache/airflow:2.7.1
+    build: .                # CHANGED: Uses your Dockerfile to install dbt
     command: webserver
     ports:
       - "8080:8080"
@@ -22,7 +22,8 @@ services:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data   <-- ADD THIS LINE
+      - ./data:/opt/airflow/data
+      - ./dbt_project:/opt/airflow/dbt_project
     depends_on:
       - postgres
     healthcheck:
@@ -31,9 +32,9 @@ services:
       timeout: 30s
       retries: 5
 
-  # 3. Airflow Scheduler - The "Heart" that triggers jobs
+  # 3. Airflow Scheduler
   scheduler:
-    image: apache/airflow:2.7.1
+    build: .                # CHANGED: Uses your Dockerfile to install dbt
     command: scheduler
     env_file:
       - .env
@@ -41,13 +42,14 @@ services:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
-      - ./data:/opt/airflow/data   <-- ADD THIS LINE
+      - ./data:/opt/airflow/data
+      - ./dbt_project:/opt/airflow/dbt_project
     depends_on:
       - postgres
 
-  # 4. Airflow Init - Runs once to set up the database tables
+  # 4. Airflow Init
   airflow-init:
-    image: apache/airflow:2.7.1
+    build: .                # CHANGED: Uses your Dockerfile
     command: version
     environment:
       - _AIRFLOW_DB_UPGRADE=true
