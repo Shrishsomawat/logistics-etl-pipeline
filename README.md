@@ -1,4 +1,7 @@
 # Logistics ELT Pipeline with dbt 🚚
+> 🚚 Production-grade ELT pipeline built with dbt Core, 
+Apache Airflow, PostgreSQL & Docker. 
+Simulates real-world supply chain data workflows.
 
 ## Overview
 A modern **ELT (Extract, Load, Transform)** data pipeline that ingests raw logistics data, loads it into a Data Warehouse, and uses **dbt Core** for in-warehouse transformations and data quality testing. This project simulates a real-world supply chain environment where data integrity is enforced via automated schema tests.
@@ -28,7 +31,7 @@ A modern **ELT (Extract, Load, Transform)** data pipeline that ingests raw logis
 ## How to Run
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/logistics-etl-pipeline.git](https://github.com/YOUR_USERNAME/logistics-etl-pipeline.git)
+    git clone https://github.com/Shrishsomawat/logistics-etl-pipeline.git
     ```
 2.  **Start the environment:**
     ```bash
@@ -40,3 +43,7 @@ A modern **ELT (Extract, Load, Transform)** data pipeline that ingests raw logis
 4.  **Trigger the Pipeline:**
     * Enable the DAG named **`logistics_dbt_pipeline`**.
     * Trigger the run and watch the `dbt_run` and `dbt_test` tasks turn green!
+    ---
+👨‍💻 Built by [Shrish Somawat](https://github.com/Shrishsomawat) | 
+Data Engineer | Amazon ROC  
+🔗 [LinkedIn](https://linkedin.com/in/shrishsomawat)
